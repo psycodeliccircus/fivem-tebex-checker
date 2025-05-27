@@ -21,7 +21,7 @@ function createWindow() {
   });
   mainWindow.loadFile('index.html');
 
-  // Links externos
+  // abre links externos
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -33,7 +33,7 @@ function createWindow() {
     }
   });
 
-  // Auto‐update
+  // auto‐update
   autoUpdater.autoDownload = true;
   autoUpdater.checkForUpdatesAndNotify();
   autoUpdater.on('update-available',     () => mainWindow.webContents.send('update_available'));
@@ -44,7 +44,7 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
-// 1) Selecionar pasta
+// Selecionar pasta
 ipcMain.handle('select-folder', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openDirectory']
@@ -52,7 +52,7 @@ ipcMain.handle('select-folder', async () => {
   return canceled ? null : filePaths[0];
 });
 
-// 2) Selecionar arquivo compactado
+// Selecionar arquivo .zip/.pack
 ipcMain.handle('select-file', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openFile'],
@@ -64,65 +64,77 @@ ipcMain.handle('select-file', async () => {
   return canceled ? null : filePaths[0];
 });
 
-// varre recursivamente diretório em busca de .fxap
+// varre recursivamente por .fxap dentro de um diretório
 function collectFxapFromDir(baseDir) {
   const found = [];
   (function walk(dir) {
-    fs.readdirSync(dir).forEach(name => {
+    for (const name of fs.readdirSync(dir)) {
       const full = path.join(dir, name);
       if (fs.statSync(full).isDirectory()) {
         walk(full);
-      } else {
-        if (name.toLowerCase().endsWith('.fxap')) {
-          found.push(path.relative(baseDir, full));
-        }
+      } else if (name.toLowerCase().endsWith('.fxap')) {
+        found.push(path.relative(baseDir, full));
       }
-    });
+    }
   })(baseDir);
   return found;
 }
 
-// handler único: check-encryption
+// check-encryption: lista CADA subpasta e CADA ZIP/PACK dentro da pasta selecionada
 ipcMain.handle('check-encryption', async (_, selectedPath) => {
   if (!selectedPath) return { withRes: [], withoutRes: [] };
 
   const withRes = [];
   const withoutRes = [];
   const stats = fs.statSync(selectedPath);
-  const name  = path.basename(selectedPath);
-
+  
+  // Se for diretório, lista seus filhos como recursos separados
   if (stats.isDirectory()) {
-    const fxaps = collectFxapFromDir(selectedPath);
-    if (fxaps.length) withRes.push({ name, full: selectedPath });
-    else withoutRes.push(name);
+    for (const entry of fs.readdirSync(selectedPath)) {
+      const full = path.join(selectedPath, entry);
+      const ext  = path.extname(entry).toLowerCase();
+
+      if (fs.statSync(full).isDirectory()) {
+        // subpasta
+        const fxaps = collectFxapFromDir(full);
+        if (fxaps.length) withRes.push({ name: entry, full, files: fxaps });
+        else withoutRes.push(entry);
+      }
+      else if (ARCHIVE_EXTS.includes(ext)) {
+        // arquivo compactado
+        const zip = new AdmZip(full);
+        const fxaps = zip.getEntries()
+          .map(e => e.entryName)
+          .filter(n => n.toLowerCase().endsWith('.fxap'));
+        if (fxaps.length) withRes.push({ name: entry, full, files: fxaps });
+        else withoutRes.push(entry);
+      }
+    }
   }
+  // Se for um arquivo compactado selecionado diretamente
   else if (stats.isFile() && ARCHIVE_EXTS.includes(path.extname(selectedPath).toLowerCase())) {
+    const entryName = path.basename(selectedPath);
     const zip = new AdmZip(selectedPath);
     const fxaps = zip.getEntries()
       .map(e => e.entryName)
       .filter(n => n.toLowerCase().endsWith('.fxap'));
-    if (fxaps.length) withRes.push({ name, full: selectedPath });
-    else withoutRes.push(name);
-  }
-  else {
-    withoutRes.push(name);
+    if (fxaps.length) withRes.push({ name: entryName, full: selectedPath, files: fxaps });
+    else withoutRes.push(entryName);
   }
 
   return { withRes, withoutRes };
 });
 
-// handler novo: delete-resource — deleta todo recurso (pasta ou arquivo)
+// delete-resource: deleta inteira pasta ou arquivo compactado
 ipcMain.handle('delete-resource', async (_, basePath, resourceFullPath) => {
   try {
     if (!fs.existsSync(resourceFullPath)) {
       return { success: false, error: 'Recurso não encontrado' };
     }
-    const stats = fs.statSync(resourceFullPath);
-    if (stats.isDirectory()) {
-      // deleta pasta recursivamente
+    const s = fs.statSync(resourceFullPath);
+    if (s.isDirectory()) {
       fs.rmSync(resourceFullPath, { recursive: true, force: true });
     } else {
-      // deleta arquivo (ZIP/pack)
       fs.unlinkSync(resourceFullPath);
     }
     return { success: true };
@@ -131,7 +143,7 @@ ipcMain.handle('delete-resource', async (_, basePath, resourceFullPath) => {
   }
 });
 
-// controles de janela e update
+// Controles de janela e update
 ipcMain.handle('window-minimize',   () => mainWindow.minimize());
 ipcMain.handle('window-close',      () => mainWindow.close());
 ipcMain.handle('check_for_updates', () => autoUpdater.checkForUpdates());

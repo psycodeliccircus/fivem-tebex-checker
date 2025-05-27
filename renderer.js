@@ -1,4 +1,6 @@
 // renderer.js
+
+// Obtém referências aos elementos do DOM
 const {
   btnSelectFolder, btnSelectFile, btnCheck, btnUpdate,
   pathDisplay, ulNo, ulYes,
@@ -23,10 +25,11 @@ const {
 let selectedPath = null;
 let foundRes = [];
 
-// controles de janela
+// Controles de janela
 minBtn.onclick   = () => window.api.minimize();
 closeBtn.onclick = () => window.api.close();
 
+// Limpa as listas e o rodapé
 function resetLists() {
   ulNo.innerHTML = '';
   ulYes.innerHTML = '';
@@ -34,7 +37,24 @@ function resetLists() {
   statusFooter.textContent = '';
 }
 
-// selecionar pasta
+// Exibe um toast temporário com opcional botão e auto-close
+function showAlert(htmlContent, duration = 3000, autoClose = true) {
+  const alertEl = document.createElement('div');
+  alertEl.className = 'temp-alert';
+  alertEl.innerHTML = htmlContent;
+  document.body.appendChild(alertEl);
+
+  if (autoClose) {
+    setTimeout(() => {
+      alertEl.classList.add('hide');
+      alertEl.addEventListener('transitionend', () => alertEl.remove());
+    }, duration);
+  }
+
+  return alertEl;
+}
+
+// Selecionar pasta
 btnSelectFolder.onclick = async () => {
   const p = await window.api.selectFolder();
   if (!p) return;
@@ -44,7 +64,7 @@ btnSelectFolder.onclick = async () => {
   resetLists();
 };
 
-// selecionar arquivo
+// Selecionar arquivo (.zip / .pack)
 btnSelectFile.onclick = async () => {
   const p = await window.api.selectFile();
   if (!p) return;
@@ -54,43 +74,48 @@ btnSelectFile.onclick = async () => {
   resetLists();
 };
 
-// iniciar verificação
+// Iniciar verificação
 btnCheck.onclick = async () => {
   if (!selectedPath) return;
-  statusFooter.textContent = 'Processando...';
+
+  // 1) Toast de início
+  showAlert('Processando...', 2000, true);
+
+  // 2) Limpa listas
   resetLists();
 
+  // 3) Lê do backend
   const { withRes, withoutRes } = await window.api.checkEncryption(selectedPath);
   foundRes = withRes;
 
-  // sem Tebex
+  // 4) Popula “Sem Tebex”
   withoutRes.forEach(name => {
     const li = document.createElement('li');
     li.textContent = name;
     ulNo.appendChild(li);
   });
 
-  // com Tebex
+  // 5) Popula “Com Tebex”
   if (withRes.length > 0) {
     btnDeleteAll.style.display = 'inline-block';
     withRes.forEach((r, i) => {
       const li = document.createElement('li');
       li.innerHTML =
         '<span>' + r.name + '</span>' +
-        '<button class="btn-delete" data-index="' + i + '">Excluir Pasta</button>';
+        '<button class="btn-delete" data-index="' + i + '">Excluir</button>';
       ulYes.appendChild(li);
     });
 
-    // handler de cada excluir pasta
+    // Handler de exclusão individual
     document.querySelectorAll('.btn-delete').forEach(b => {
       b.addEventListener('click', async () => {
         const idx = parseInt(b.dataset.index, 10);
         const res = foundRes[idx];
         if (!confirm('Deletar completamente "' + res.name + '"?')) return;
-        const fullPath = res.full;
-        const resp = await window.api.deleteResource(selectedPath, fullPath);
+
+        const resp = await window.api.deleteResource(selectedPath, res.full);
         if (!resp.success) {
-          alert('Erro: ' + resp.error);
+          showAlert('Erro: ' + resp.error, 4000, true);
           return;
         }
         btnCheck.click();
@@ -98,7 +123,7 @@ btnCheck.onclick = async () => {
     });
   }
 
-  // excluir todas as pastas de uma vez
+  // 6) Excluir todos de uma vez
   btnDeleteAll.onclick = () => {
     if (!confirm('Deletar completamente todas as pastas encontradas?')) return;
     foundRes.forEach(async r => {
@@ -107,23 +132,41 @@ btnCheck.onclick = async () => {
     btnCheck.click();
   };
 
-  statusFooter.textContent =
-    'Exibição finalizada: ' + (withRes.length + withoutRes.length) + ' recurso(s).';
+  // 7) Mostra todas as pastas verificadas num toast
+  const allNames = withoutRes.concat(withRes.map(r => r.name));
+  showAlert(
+    'Pastas verificadas: ' + (allNames.length ? allNames.join(', ') : 'nenhuma'),
+    5000,
+    true
+  );
+
+  // 8) Toast de conclusão
+  showAlert(
+    'Exibição finalizada: ' + allNames.length + ' recurso(s).',
+    3000,
+    true
+  );
 };
-  
-// verificação de update
+
+// Verificação de update
 btnUpdate.onclick = () => {
-  statusFooter.textContent = 'Checando atualizações...';
+  showAlert('Checando atualizações...', 2000, true);
   window.api.checkForUpdates();
 };
+
 window.api.onUpdateAvailable(() => {
-  statusFooter.textContent = 'Update encontrado! Baixando...';
+  showAlert('Update encontrado! Baixando...', 3000, true);
 });
+
 window.api.onUpdateDownloaded(() => {
-  statusFooter.innerHTML =
-    'Update baixado! <button id="rBtn">Reiniciar</button>';
-  document.getElementById('rBtn').onclick = () => window.api.restartApp();
+  const toast = showAlert(
+    'Update baixado! <button id="rBtn">Reiniciar</button>',
+    0,
+    false
+  );
+  toast.querySelector('#rBtn').onclick = () => window.api.restartApp();
 });
+
 window.api.onUpdateNotAvailable(() => {
-  statusFooter.textContent = 'Você já está usando a versão mais recente.';
+  showAlert('Você já está usando a versão mais recente.', 3000, true);
 });
