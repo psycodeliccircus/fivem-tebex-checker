@@ -21,7 +21,7 @@ function createWindow() {
   });
   mainWindow.loadFile('index.html');
 
-  // abrir links externos
+  // Links externos
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -33,7 +33,7 @@ function createWindow() {
     }
   });
 
-  // auto‐update
+  // Auto‐update
   autoUpdater.autoDownload = true;
   autoUpdater.checkForUpdatesAndNotify();
   autoUpdater.on('update-available',     () => mainWindow.webContents.send('update_available'));
@@ -44,7 +44,7 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
-// 1) Selecionar somente pastas
+// 1) Selecionar pasta
 ipcMain.handle('select-folder', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openDirectory']
@@ -52,19 +52,19 @@ ipcMain.handle('select-folder', async () => {
   return canceled ? null : filePaths[0];
 });
 
-// 2) Selecionar somente arquivos .zip ou .pack
+// 2) Selecionar arquivo compactado
 ipcMain.handle('select-file', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openFile'],
     filters: [
-      { name: 'Arquivos Compactados', extensions: ARCHIVE_EXTS.map(e => e.slice(1)) },
-      { name: 'Todos os Arquivos',   extensions: ['*'] }
+      { name: 'Arquivos compactados', extensions: ARCHIVE_EXTS.map(e => e.slice(1)) },
+      { name: 'Todos os arquivos',    extensions: ['*'] }
     ]
   });
   return canceled ? null : filePaths[0];
 });
 
-// varre recursivamente um diretório procurando .fxap
+// varre recursivamente diretório em busca de .fxap
 function collectFxapFromDir(baseDir) {
   const found = [];
   (function walk(dir) {
@@ -73,8 +73,7 @@ function collectFxapFromDir(baseDir) {
       if (fs.statSync(full).isDirectory()) {
         walk(full);
       } else {
-        const f = name.toLowerCase();
-        if (f.endsWith('.fxap')) {
+        if (name.toLowerCase().endsWith('.fxap')) {
           found.push(path.relative(baseDir, full));
         }
       }
@@ -83,7 +82,7 @@ function collectFxapFromDir(baseDir) {
   return found;
 }
 
-// Handler único de verificação
+// handler único: check-encryption
 ipcMain.handle('check-encryption', async (_, selectedPath) => {
   if (!selectedPath) return { withRes: [], withoutRes: [] };
 
@@ -93,48 +92,38 @@ ipcMain.handle('check-encryption', async (_, selectedPath) => {
   const name  = path.basename(selectedPath);
 
   if (stats.isDirectory()) {
-    // pasta: varre tudo dentro
     const fxaps = collectFxapFromDir(selectedPath);
-    if (fxaps.length) {
-      withRes.push({ name, files: fxaps });
-    } else {
-      withoutRes.push(name);
-    }
+    if (fxaps.length) withRes.push({ name, full: selectedPath });
+    else withoutRes.push(name);
   }
   else if (stats.isFile() && ARCHIVE_EXTS.includes(path.extname(selectedPath).toLowerCase())) {
-    // arquivo compactado: abre e filtra por entradas que terminam em .fxap
     const zip = new AdmZip(selectedPath);
     const fxaps = zip.getEntries()
       .map(e => e.entryName)
       .filter(n => n.toLowerCase().endsWith('.fxap'));
-    if (fxaps.length) {
-      withRes.push({ name, files: fxaps });
-    } else {
-      withoutRes.push(name);
-    }
+    if (fxaps.length) withRes.push({ name, full: selectedPath });
+    else withoutRes.push(name);
   }
   else {
-    // outro tipo de arquivo
     withoutRes.push(name);
   }
 
   return { withRes, withoutRes };
 });
 
-// Handler de exclusão de .fxap
-ipcMain.handle('delete-files', async (_, basePath, files) => {
+// handler novo: delete-resource — deleta todo recurso (pasta ou arquivo)
+ipcMain.handle('delete-resource', async (_, basePath, resourceFullPath) => {
   try {
-    const stats = fs.statSync(basePath);
-    const ext   = path.extname(basePath).toLowerCase();
-    if (stats.isFile() && ARCHIVE_EXTS.includes(ext)) {
-      const zip = new AdmZip(basePath);
-      files.forEach(f => zip.deleteFile(f));
-      zip.writeZip(basePath);
+    if (!fs.existsSync(resourceFullPath)) {
+      return { success: false, error: 'Recurso não encontrado' };
+    }
+    const stats = fs.statSync(resourceFullPath);
+    if (stats.isDirectory()) {
+      // deleta pasta recursivamente
+      fs.rmSync(resourceFullPath, { recursive: true, force: true });
     } else {
-      files.forEach(rel => {
-        const full = path.join(basePath, rel);
-        if (fs.existsSync(full)) fs.unlinkSync(full);
-      });
+      // deleta arquivo (ZIP/pack)
+      fs.unlinkSync(resourceFullPath);
     }
     return { success: true };
   } catch (err) {
@@ -142,7 +131,7 @@ ipcMain.handle('delete-files', async (_, basePath, files) => {
   }
 });
 
-// Controles de janela e update
+// controles de janela e update
 ipcMain.handle('window-minimize',   () => mainWindow.minimize());
 ipcMain.handle('window-close',      () => mainWindow.close());
 ipcMain.handle('check_for_updates', () => autoUpdater.checkForUpdates());
