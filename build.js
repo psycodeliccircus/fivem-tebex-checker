@@ -14,8 +14,8 @@ class Index {
       config: {
         generateUpdatesFilesForAllChannels: false,
         appId: 'com.github.psycodeliccircus.fivem-tebex-checker',
-        productName: 'fivem-tebex-checker',
-        executableName: 'fivem-tebex-checker',
+        productName: productName,
+        executableName: productName,
         icon: './build/icon.ico',
         copyright:
           'Copyright © 1984-2025 FiveM Tebex Checker - Dev by RenildoMarcio',
@@ -61,10 +61,10 @@ class Index {
             { target: 'tar.gz',   arch: ['x64', 'arm64'] }
           ]
         },
+        // appImage sem o campo 'desktop', que causava o erro de validação
         appImage: {
           artifactName: '${productName}-${os}-${arch}.AppImage',
           category: 'Game',
-          desktop: './FiveMTebexChecker.desktop',
           license: './eula.txt'
         },
         extraResources: [
@@ -88,29 +88,25 @@ class Index {
       return console.error('connection error', res.status);
     }
 
-    // lê o corpo como buffer
+    // lê buffer
     let buffer = await res.buffer();
 
-    // sanitiza tudo após o chunk IEND para evitar erro de “unrecognised content”
+    // sanitiza após IEND
     const IEND = Buffer.from([0,0,0x00,0x00,0x49,0x45,0x4E,0x44]);
     const iendOffset = buffer.indexOf(IEND);
     if (iendOffset !== -1) {
-      // 4 bytes length + "IEND" + 4 bytes CRC = 12 bytes
       buffer = buffer.slice(0, iendOffset + 12);
     }
 
-    // usa Jimp para redimensionar
     try {
       const image = await Jimp.read(buffer);
       const resized = await image
         .resize(256, 256)
         .getBufferAsync(Jimp.MIME_PNG);
 
-      // garante pasta
       const buildDir = path.join(__dirname, 'build');
       fs.mkdirSync(buildDir, { recursive: true });
 
-      // grava os ícones
       fs.writeFileSync(path.join(buildDir, 'icon.png'), resized);
       fs.writeFileSync(
         path.join(buildDir, 'icon.ico'),
@@ -128,7 +124,7 @@ class Index {
   }
 }
 
-// entrypoint: --icon=<URL> ou --build
+// Entrypoint: --icon=<URL> ou --build
 const inst = new Index();
 process.argv.slice(2).forEach(arg => {
   if (arg.startsWith('--icon=')) {
