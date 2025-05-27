@@ -1,0 +1,40 @@
+END USER LICENSE AGREEMENT (EULA)
+---------------------------------
+
+ATENÇÃO: LEIA ESTE ACORDO ATENTAMENTE ANTES DE INSTALAR OU USAR O SOFTWARE.
+
+1. PARTES
+   Este Contrato de Licença de Usuário Final (“EULA”) é um acordo entre você (como indivíduo ou entidade) doravante denominado “Licenciado” e Renildo Marcio, doravante denominado “Licenciador”, para o software “FiveM Tebex Checker” (“Software”).
+
+2. CONCESSÃO DE LICENÇA
+   O Licenciador concede ao Licenciado uma licença não exclusiva, intransferível e revogável para instalar e usar o Software unicamente para fins pessoais ou internos, conforme descrito na documentação oficial.
+
+3. RESTRIÇÕES
+   O Licenciado não poderá:
+   a. Distribuir, sublicenciar, alugar, arrendar, emprestar ou comercializar o Software;
+   b. Modificar, adaptar, traduzir, descompilar, fazer engenharia reversa ou tentar extrair o código-fonte do Software;
+   c. Remover, alterar ou ocultar avisos de direitos autorais, marcas registradas ou outros avisos de propriedade.
+
+4. PROPRIEDADE
+   O Software é licenciado, não vendido. O Licenciador retém todos os direitos, títulos e interesses sobre o Software e seus componentes.
+
+5. ATUALIZAÇÕES E SUPORTE
+   O Licenciador pode, a seu critério, fornecer atualizações, patches ou melhorias ao Software. Não existe obrigação de suporte ou manutenção, exceto quando explicitamente acordado em documento separado.
+
+6. ISENÇÃO DE GARANTIAS
+   O SOFTWARE É FORNECIDO “NO ESTADO EM QUE SE ENCONTRA”, SEM GARANTIAS DE QUALQUER TIPO, EXPRESSAS OU IMPLÍCITAS, INCLUINDO, SEM LIMITAÇÃO, GARANTIAS DE COMERCIALIZAÇÃO, ADEQUAÇÃO A UM DETERMINADO FIM OU NÃO VIOLAÇÃO.
+
+7. LIMITAÇÃO DE RESPONSABILIDADE
+   EM NENHUMA HIPÓTESE O LICENCIADOR SERÁ RESPONSÁVEL POR DANOS DIRETOS, INDIRETOS, INCIDENTAIS, ESPECIAIS OU CONSEQUENCIAIS, INCLUINDO LUCROS CESSANTES, INTERRUPÇÃO DE NEGÓCIOS OU PERDA DE INFORMAÇÕES, DECORRENTES DO USO OU INCAPACIDADE DE USO DO SOFTWARE, MESMO SE AVISADO DA POSSIBILIDADE DE TAIS DANOS.
+
+8. RESCISÃO
+   Este EULA será rescindido automaticamente sem aviso prévio se o Licenciado violar qualquer termo deste contrato. Após rescisão, o Licenciado deve desinstalar e destruir todas as cópias do Software.
+
+9. LEGISLAÇÃO APLICÁVEL
+   Este EULA será regido e interpretado de acordo com as leis da República Federativa do Brasil, sem considerar conflitos de princípios legais.
+
+10. DISPOSIÇÕES GERAIS
+   a. Caso qualquer disposição deste EULA seja considerada inválida ou inexequível, as demais permanecerão em pleno vigor.  
+   b. Este EULA constitui o entendimento completo entre as partes em relação ao Software e substitui todos os acordos anteriores, escritos ou verbais.
+
+AO INSTALAR OU USAR O SOFTWARE, VOCÊ CONCORDA COM TODOS OS TERMOS DESTE EULA.

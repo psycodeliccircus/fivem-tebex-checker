@@ -1,0 +1,11 @@
+# Generated
+node_modules
+app
+test
+dist
+node-v*
+AppData
+package-lock.json
+backend
+db.sql
+main_bk.js
