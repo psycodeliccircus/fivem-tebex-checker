@@ -1,16 +1,16 @@
 // main.js (processo principal)
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
-const path = require('path');
-const fs = require('fs');
+const path    = require('path');
+const fs      = require('fs');
+const AdmZip  = require('adm-zip');
 const { autoUpdater } = require('electron-updater');
-const AdmZip = require('adm-zip');
 
 let mainWindow;
+const ARCHIVE_EXTS = ['.zip', '.pack'];
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 800, height: 600,
     icon: path.join(__dirname, 'build/icon.png'),
     frame: false,
     webPreferences: {
@@ -19,87 +19,116 @@ function createWindow() {
       nodeIntegration: false
     }
   });
-
   mainWindow.loadFile('index.html');
 
-  // --- intercepta tentativas de abrir novas janelas (target="_blank", window.open)
+  // abrir links externos
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
   });
-
-  // --- intercepta navegações normais (href sem target)
-  mainWindow.webContents.on('will-navigate', (event, url) => {
-    // se for uma URL externa, previne e abre no navegador
+  mainWindow.webContents.on('will-navigate', (e, url) => {
     if (url !== mainWindow.webContents.getURL()) {
-      event.preventDefault();
+      e.preventDefault();
       shell.openExternal(url);
     }
   });
 
-  // Auto‐update
+  // auto‐update
   autoUpdater.autoDownload = true;
   autoUpdater.checkForUpdatesAndNotify();
-  autoUpdater.on('update-available', () => {
-    mainWindow.webContents.send('update_available');
-  });
-  autoUpdater.on('update-downloaded', () => {
-    mainWindow.webContents.send('update_downloaded');
-  });
-  autoUpdater.on('error', err => {
-    console.error('Update error:', err);
-  });
+  autoUpdater.on('update-available',     () => mainWindow.webContents.send('update_available'));
+  autoUpdater.on('update-downloaded',    () => mainWindow.webContents.send('update_downloaded'));
+  autoUpdater.on('update-not-available', () => mainWindow.webContents.send('update_not_available'));
+  autoUpdater.on('error', err => console.error('Update error:', err));
 }
 
 app.whenReady().then(createWindow);
 
-// Selecionar pasta ou ZIP
-ipcMain.handle('select-path', async () => {
+// 1) Selecionar somente pastas
+ipcMain.handle('select-folder', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
-    properties: ['openDirectory', 'openFile'],
-    filters: [{ name: 'ZIP e Pastas', extensions: ['zip'] }]
+    properties: ['openDirectory']
   });
   return canceled ? null : filePaths[0];
 });
 
-// Classificar recursos em sem/com Tebex
-ipcMain.handle('check-encryption', async (event, basePath) => {
-  const withRes = [];
-  const withoutRes = [];
+// 2) Selecionar somente arquivos .zip ou .pack
+ipcMain.handle('select-file', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [
+      { name: 'Arquivos Compactados', extensions: ARCHIVE_EXTS.map(e => e.slice(1)) },
+      { name: 'Todos os Arquivos',   extensions: ['*'] }
+    ]
+  });
+  return canceled ? null : filePaths[0];
+});
 
-  if (!fs.statSync(basePath).isDirectory()) {
-    return { withRes, withoutRes };
-  }
-
-  for (const folder of fs.readdirSync(basePath)) {
-    const full = path.join(basePath, folder);
-    if (!fs.statSync(full).isDirectory()) continue;
-
-    const fxap = [];
-    (function walk(dir) {
-      for (const f of fs.readdirSync(dir)) {
-        const p = path.join(dir, f);
-        if (fs.statSync(p).isDirectory()) walk(p);
-        else if (path.extname(p).toLowerCase() === '.fxap') {
-          fxap.push(path.relative(basePath, p));
+// varre recursivamente um diretório procurando .fxap
+function collectFxapFromDir(baseDir) {
+  const found = [];
+  (function walk(dir) {
+    fs.readdirSync(dir).forEach(name => {
+      const full = path.join(dir, name);
+      if (fs.statSync(full).isDirectory()) {
+        walk(full);
+      } else {
+        const f = name.toLowerCase();
+        if (f.endsWith('.fxap')) {
+          found.push(path.relative(baseDir, full));
         }
       }
-    })(full);
+    });
+  })(baseDir);
+  return found;
+}
 
-    if (fxap.length) withRes.push({ name: folder, files: fxap });
-    else withoutRes.push(folder);
+// Handler único de verificação
+ipcMain.handle('check-encryption', async (_, selectedPath) => {
+  if (!selectedPath) return { withRes: [], withoutRes: [] };
+
+  const withRes = [];
+  const withoutRes = [];
+  const stats = fs.statSync(selectedPath);
+  const name  = path.basename(selectedPath);
+
+  if (stats.isDirectory()) {
+    // pasta: varre tudo dentro
+    const fxaps = collectFxapFromDir(selectedPath);
+    if (fxaps.length) {
+      withRes.push({ name, files: fxaps });
+    } else {
+      withoutRes.push(name);
+    }
+  }
+  else if (stats.isFile() && ARCHIVE_EXTS.includes(path.extname(selectedPath).toLowerCase())) {
+    // arquivo compactado: abre e filtra por entradas que terminam em .fxap
+    const zip = new AdmZip(selectedPath);
+    const fxaps = zip.getEntries()
+      .map(e => e.entryName)
+      .filter(n => n.toLowerCase().endsWith('.fxap'));
+    if (fxaps.length) {
+      withRes.push({ name, files: fxaps });
+    } else {
+      withoutRes.push(name);
+    }
+  }
+  else {
+    // outro tipo de arquivo
+    withoutRes.push(name);
   }
 
   return { withRes, withoutRes };
 });
 
-// Deletar .fxap
-ipcMain.handle('delete-files', async (event, basePath, files) => {
+// Handler de exclusão de .fxap
+ipcMain.handle('delete-files', async (_, basePath, files) => {
   try {
-    const stat = fs.statSync(basePath);
-    if (stat.isFile() && path.extname(basePath).toLowerCase() === '.zip') {
+    const stats = fs.statSync(basePath);
+    const ext   = path.extname(basePath).toLowerCase();
+    if (stats.isFile() && ARCHIVE_EXTS.includes(ext)) {
       const zip = new AdmZip(basePath);
-      files.forEach(e => zip.deleteFile(e));
+      files.forEach(f => zip.deleteFile(f));
       zip.writeZip(basePath);
     } else {
       files.forEach(rel => {
@@ -108,15 +137,13 @@ ipcMain.handle('delete-files', async (event, basePath, files) => {
       });
     }
     return { success: true };
-  } catch (e) {
-    return { success: false, error: e.message };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 });
 
-// Controles de janela
-ipcMain.handle('window-minimize', () => mainWindow.minimize());
-ipcMain.handle('window-close',    () => mainWindow.close());
-
-// Forçar check e restart de updates
+// Controles de janela e update
+ipcMain.handle('window-minimize',   () => mainWindow.minimize());
+ipcMain.handle('window-close',      () => mainWindow.close());
 ipcMain.handle('check_for_updates', () => autoUpdater.checkForUpdates());
-ipcMain.handle('restart_app',      () => autoUpdater.quitAndInstall());
+ipcMain.handle('restart_app',       () => autoUpdater.quitAndInstall());
