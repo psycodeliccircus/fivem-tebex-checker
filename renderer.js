@@ -144,7 +144,7 @@ btnUpdate.onclick = () => {
 // Quando atualização for encontrada
 window.api.onUpdateAvailable(() => {
   // deixa o botão visível (caso estivesse escondido)
-  update.style.display = 'inline-block';
+  btnUpdate.style.display = 'inline-block';
   showAlert('Update encontrado! Baixando...', 3000, true);
 });
 
@@ -161,6 +161,6 @@ window.api.onUpdateDownloaded(() => {
 // Quando não há atualização disponível
 window.api.onUpdateNotAvailable(() => {
   // esconde o botão de verificar update
-  update.style.display = 'none';
+  btnUpdate.style.display = 'none';
   showAlert('Você já está usando a versão mais recente.', 3000, true);
 });
