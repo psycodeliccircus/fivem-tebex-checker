@@ -1,11 +1,12 @@
 // main.js (processo principal)
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu } = require('electron');
 const path    = require('path');
 const fs      = require('fs');
 const AdmZip  = require('adm-zip');
 const { autoUpdater } = require('electron-updater');
 
 let mainWindow;
+let appTray;                  // variável para o Tray
 const ARCHIVE_EXTS = ['.zip', '.pack'];
 
 function createWindow() {
@@ -22,6 +23,14 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
+
+  // Ao fechar, não encerra o app (fica em tray)
+  mainWindow.on('close', e => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
 
   // Força links externos no navegador padrão
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -43,10 +52,55 @@ function createWindow() {
     .on('update-downloaded',    () => mainWindow.webContents.send('update_downloaded'))
     .on('update-not-available', () => mainWindow.webContents.send('update_not_available'))
     .on('error', err => console.error('Update error:', err));
+
+  createTray();
 }
 
 app.whenReady().then(createWindow);
 
+app.on('activate', () => {
+  mainWindow.show();
+});
+
+// Antes de realmente sair, marca que o app está quitando
+app.on('before-quit', () => app.isQuitting = true);
+
+// =====================
+// Função de Tray
+// =====================
+function createTray() {
+  if (appTray) return; // já criado
+
+  const iconPath = path.join(__dirname, 'build/icon.png');
+  appTray = new Tray(iconPath);
+
+  const trayMenu = Menu.buildFromTemplate([
+    {
+      label: 'Verificar Update',
+      click: () => autoUpdater.checkForUpdates()
+    },
+    {
+      label: 'Sair',
+      click: () => {
+        app.isQuitting = true;
+        app.quit();
+      }
+    }
+  ]);
+
+  appTray.setToolTip('FiveM Tebex Checker');
+  appTray.setContextMenu(trayMenu);
+
+  // Clique simples no tray alterna visibilidade
+  appTray.on('click', () => {
+    if (mainWindow.isVisible()) mainWindow.hide();
+    else mainWindow.show();
+  });
+}
+
+// =====================
+// Handlers de IPC
+// =====================
 
 // --- Helpers ---
 
@@ -72,16 +126,13 @@ ipcMain.handle('select-file', async () => {
 
 /**
  * Coleta todos os .fxap sob um diretório, recursivamente.
- * @param {string} dir 
- * @returns {string[]} caminhos relativos
  */
 function collectFxapFromDir(dir) {
   const found = [];
   (function walk(current) {
     for (const name of fs.readdirSync(current)) {
       const full = path.join(current, name);
-      const stat = fs.statSync(full);
-      if (stat.isDirectory()) {
+      if (fs.statSync(full).isDirectory()) {
         walk(full);
       } else if (name.toLowerCase().endsWith('.fxap')) {
         found.push(path.relative(dir, full));
@@ -92,10 +143,7 @@ function collectFxapFromDir(dir) {
 }
 
 /**
- * Reúne recursivamente todos os diretórios dentro de baseDir,
- * incluindo o próprio baseDir.
- * @param {string} baseDir 
- * @returns {{ name: string, full: string }[]}
+ * Reúne recursivamente todos os diretórios dentro de baseDir.
  */
 function listAllDirectories(baseDir) {
   const list = [];
@@ -105,8 +153,7 @@ function listAllDirectories(baseDir) {
   (function walk(current, relPath) {
     for (const name of fs.readdirSync(current)) {
       const full = path.join(current, name);
-      const stat = fs.statSync(full);
-      if (stat.isDirectory()) {
+      if (fs.statSync(full).isDirectory()) {
         const relName = relPath ? `${relPath}/${name}` : name;
         list.push({ name: relName, full });
         walk(full, relName);
@@ -118,8 +165,7 @@ function listAllDirectories(baseDir) {
 }
 
 /**
- * Verifica um recurso único (diretório ou archive) e retorna
- * { name, full, files } se contiver .fxap, ou null caso contrário.
+ * Verifica um recurso único (diretório ou archive).
  */
 function scanSingleResource(fullPath, name) {
   const stat = fs.statSync(fullPath);
@@ -142,16 +188,8 @@ function scanSingleResource(fullPath, name) {
     : null;
 }
 
-
 // --- Handler principal ---
 
-/**
- * check-encryption:
- * - Se selecionou arquivo .zip/.pack → verifica só ele.
- * - Se selecionou pasta:
- *    • Se ela mesma contiver .fxap em qualquer nível → trata pasta inteira.
- *    • Senão → lista cada subpasta e classifica separadamente.
- */
 ipcMain.handle('check-encryption', async (_, selectedPath) => {
   const withRes = [];
   const withoutRes = [];
@@ -162,7 +200,7 @@ ipcMain.handle('check-encryption', async (_, selectedPath) => {
 
   const stat = fs.statSync(selectedPath);
 
-  // 1) Seleção é arquivo compactado?
+  // 1) Se for arquivo compactado
   if (stat.isFile() && ARCHIVE_EXTS.includes(path.extname(selectedPath).toLowerCase())) {
     const name = path.basename(selectedPath);
     const result = scanSingleResource(selectedPath, name);
@@ -171,9 +209,9 @@ ipcMain.handle('check-encryption', async (_, selectedPath) => {
     return { withRes, withoutRes };
   }
 
-  // 2) Seleção é pasta
+  // 2) Se for pasta
   if (stat.isDirectory()) {
-    // 2a) checa se ela mesma tem algum .fxap
+    // 2a) verifica se a própria pasta contém .fxap
     const rootName = path.basename(selectedPath);
     const rootScan = scanSingleResource(selectedPath, rootName);
     if (rootScan) {
@@ -182,9 +220,7 @@ ipcMain.handle('check-encryption', async (_, selectedPath) => {
     }
     // 2b) senão, lista todas as subpastas
     const dirs = listAllDirectories(selectedPath);
-    // remove o primeiro item (é a própria base) já que sabemos que não tem .fxap nele
-    dirs.shift();
-
+    dirs.shift(); // remove a própria base
     for (const { name, full } of dirs) {
       const scan = scanSingleResource(full, name);
       if (scan)     withRes.push(scan);
@@ -195,9 +231,8 @@ ipcMain.handle('check-encryption', async (_, selectedPath) => {
   return { withRes, withoutRes };
 });
 
-
 /** delete-resource: deleta pasta ou arquivo compactado */
-ipcMain.handle('delete-resource', async (_event, _unused, resourceFullPath) => {
+ipcMain.handle('delete-resource', async (_, _unused, resourceFullPath) => {
   try {
     if (!fs.existsSync(resourceFullPath)) {
       return { success: false, error: 'Recurso não encontrado' };
