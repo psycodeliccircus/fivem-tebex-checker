@@ -24,7 +24,7 @@ function createWindow() {
     width: 800,
     height: 600,
     icon: getAssetPath('icon.png'),
-    fullscreen: true,
+    //fullscreen: true,
     frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -32,6 +32,8 @@ function createWindow() {
       nodeIntegration: false,
     }
   });
+
+  mainWindow.maximize();
 
   mainWindow.loadFile('index.html');
 
