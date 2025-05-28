@@ -24,7 +24,6 @@ function createWindow() {
     width: 800,
     height: 600,
     icon: getAssetPath('icon.png'),
-    //fullscreen: true,
     frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -32,8 +31,6 @@ function createWindow() {
       nodeIntegration: false,
     }
   });
-
-  mainWindow.maximize();
 
   mainWindow.loadFile('index.html');
 
@@ -242,6 +239,14 @@ ipcMain.handle('window-close', () => {
   if (appTray) { appTray.destroy(); appTray = null; }
   mainWindow.destroy();
   app.quit();
+});
+
+ipcMain.handle('window-maximize', () => {
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
 });
 
 ipcMain.handle('window-minimize', () => mainWindow.minimize());

@@ -31,6 +31,7 @@ const progressText    = document.getElementById('progressText');
 
 const minBtn          = document.getElementById('min-btn');
 const closeBtn        = document.getElementById('close-btn');
+const maxBtn          = document.getElementById('max-btn');
 const btnUpdate       = document.getElementById('btnUpdate');
 
 let selectedPath = null;
@@ -172,6 +173,7 @@ window.api.onUpdateNotAvailable(() => {
 
 // ===== Controles de Janela =====
 minBtn.onclick   = () => window.api.windowMinimize();
+maxBtn.onclick   = () => window.api.windowMaximize();
 closeBtn.onclick = () => window.api.windowClose();
 
 // assim que carregar a UI, busca nome e versão

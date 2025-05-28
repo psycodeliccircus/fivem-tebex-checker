@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('api', {
   restartApp:          () => ipcRenderer.invoke('restart_app'),
 
   // janela
+  windowMaximize:      () => ipcRenderer.invoke('window-maximize'),
   windowMinimize:      () => ipcRenderer.invoke('window-minimize'),
   windowClose:         () => ipcRenderer.invoke('window-close'),
 });
