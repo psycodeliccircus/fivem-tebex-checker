@@ -1,4 +1,22 @@
-// Seleção e verificação
+// renderer.js
+
+// ===== showAlert =====
+function showAlert(html, duration = 3000, autoHide = true) {
+  const alert = document.createElement('div');
+  alert.classList.add('temp-alert');
+  alert.innerHTML = html;
+  document.body.appendChild(alert);
+
+  if (autoHide) {
+    setTimeout(() => alert.classList.add('hide'), duration);
+    setTimeout(() => {
+      if (alert.parentNode) alert.parentNode.removeChild(alert);
+    }, duration + 500);
+  }
+  return alert;
+}
+
+// ===== Elementos =====
 const btnSelectFolder = document.getElementById('btnSelectFolder');
 const btnSelectFile   = document.getElementById('btnSelectFile');
 const pathDisplay     = document.getElementById('pathDisplay');
@@ -7,22 +25,24 @@ const btnDeleteAll    = document.getElementById('btnDeleteAll');
 const ulNo            = document.getElementById('ulNo');
 const ulYes           = document.getElementById('ulYes');
 
-// Progress bar
 const progressCt      = document.getElementById('progressContainer');
 const progressBar     = document.getElementById('progressBar');
 const progressText    = document.getElementById('progressText');
 
-// Janela
 const minBtn          = document.getElementById('min-btn');
 const closeBtn        = document.getElementById('close-btn');
-
-// Update
 const btnUpdate       = document.getElementById('btnUpdate');
 
 let selectedPath = null;
 let foundRes = [];
 
-// Selecionar pasta
+// ===== Inicialização do botão de Update =====
+// começa oculto
+btnUpdate.style.display = 'none';
+// dispara a checagem assim que carregar
+window.api.checkForUpdates();
+
+// ===== Seleção de pasta =====
 btnSelectFolder.onclick = async () => {
   const folder = await window.api.selectFolder();
   if (folder) {
@@ -32,7 +52,7 @@ btnSelectFolder.onclick = async () => {
   }
 };
 
-// Selecionar arquivo
+// ===== Seleção de arquivo =====
 btnSelectFile.onclick = async () => {
   const file = await window.api.selectFile();
   if (file) {
@@ -42,7 +62,7 @@ btnSelectFile.onclick = async () => {
   }
 };
 
-// Iniciar verificação
+// ===== Iniciar verificação =====
 btnCheck.onclick = async () => {
   if (!selectedPath) return;
   ulNo.innerHTML = '';
@@ -93,7 +113,7 @@ btnCheck.onclick = async () => {
   showAlert(`Exibição finalizada: ${allNames.length} recurso(s).`, 3000, true);
 };
 
-// Progresso do scan
+// ===== Progress do scan =====
 window.api.onProgress(({ processed, total, current }) => {
   if (total === 0) {
     progressCt.style.display = 'none';
@@ -104,17 +124,17 @@ window.api.onProgress(({ processed, total, current }) => {
   progressBar.value = pct;
   progressText.textContent = `${processed}/${total} — processando "${current}"`;
   if (processed === total) {
-    setTimeout(() => {
-      progressCt.style.display = 'none';
-    }, 500);
+    setTimeout(() => progressCt.style.display = 'none', 500);
   }
 });
 
-// --- Sistema de Update ---
+// ===== Sistema de Update =====
 btnUpdate.onclick = () => {
+  // reset
   progressBar.value = 0;
   progressText.textContent = '';
   progressCt.style.display = 'flex';
+
   showAlert('Checando atualizações...', 2000, true);
   window.api.checkForUpdates();
 };
@@ -144,10 +164,12 @@ window.api.onUpdateDownloaded(() => {
 });
 
 window.api.onUpdateNotAvailable(() => {
+  // se não tem update, esconde o botão
+  btnUpdate.style.display = 'none';
   progressCt.style.display = 'none';
   showAlert('Você já está usando a versão mais recente.', 3000, true);
 });
 
-// --- Controles de Janela ---
-minBtn.onclick = () => window.api.windowMinimize();
+// ===== Controles de Janela =====
+minBtn.onclick   = () => window.api.windowMinimize();
 closeBtn.onclick = () => window.api.windowClose();
