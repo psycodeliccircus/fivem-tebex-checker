@@ -328,23 +328,34 @@ html, body {
 /* ===========================
    Barra de Progresso
    =========================== */
+/* Barra de Progresso aprimorada */
 .progress-container {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;    /* empilha progress + texto */
+  align-items: center;       /* centraliza horizontalmente */
   margin-bottom: 12px;
-  font-size: 12px;
 }
+
 .progress-container progress {
-  flex: 1;
-  height: 12px;
+  width: 100%;               /* ocupa toda a largura possível */
+  height: 14px;              /* um pouco mais alto pra ficar visível */
   appearance: none;
 }
+
 .progress-container progress::-webkit-progress-bar {
   background: #2E2E2E;
   border-radius: 4px;
 }
+
 .progress-container progress::-webkit-progress-value {
   background: #007ACC;
   border-radius: 4px;
+}
+
+.progress-text {
+  margin-top: 6px;           /* espaço entre a barra e o texto */
+  font-size: 10px;
+  color: #AAA;
+  text-align: center;
+  white-space: nowrap;
 }

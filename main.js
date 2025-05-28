@@ -1,4 +1,3 @@
-// main.js (processo principal)
 const {
   app, BrowserWindow, dialog, ipcMain, shell,
   Tray, Menu
@@ -12,9 +11,6 @@ let mainWindow;
 let appTray;
 const ARCHIVE_EXTS = ['.zip', '.pack'];
 
-// =====================
-// Helper: caminhos de asset
-// =====================
 function getAssetPath(fileName) {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'build', fileName);
@@ -23,9 +19,6 @@ function getAssetPath(fileName) {
   }
 }
 
-// =====================
-// Cria a janela principal
-// =====================
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
@@ -41,7 +34,6 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
-  // ao fechar, esconde ou fecha de verdade conforme flag
   mainWindow.on('close', e => {
     if (!app.isQuitting) {
       e.preventDefault();
@@ -49,7 +41,6 @@ function createWindow() {
     }
   });
 
-  // links externos
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -61,36 +52,42 @@ function createWindow() {
     }
   });
 
-  // auto‐update
   autoUpdater.autoDownload = true;
   autoUpdater.checkForUpdatesAndNotify();
+
   autoUpdater
-    .on('update-available',     () => mainWindow.webContents.send('update_available'))
-    .on('update-downloaded',    () => mainWindow.webContents.send('update_downloaded'))
-    .on('update-not-available', () => mainWindow.webContents.send('update_not_available'))
-    .on('error', err => console.error('Update error:', err));
+    .on('update-available', () => {
+      mainWindow.webContents.send('update_available');
+    })
+    .on('download-progress', progress => {
+      mainWindow.webContents.send('update-progress', {
+        percent: progress.percent,
+        transferred: progress.transferred,
+        total: progress.total
+      });
+    })
+    .on('update-downloaded', () => {
+      mainWindow.webContents.send('update_downloaded');
+    })
+    .on('update-not-available', () => {
+      mainWindow.webContents.send('update_not_available');
+    })
+    .on('error', err => {
+      console.error('Update error:', err);
+    });
 }
 
-// =====================
-// Cria o ícone de Tray + menu
-// =====================
 function createTray() {
   if (appTray) return;
   appTray = new Tray(getAssetPath('icon.png'));
   const trayMenu = Menu.buildFromTemplate([
-    { label: 'Mostrar', click: () => mainWindow.show() },
-    { label: 'Ocultar', click: () => mainWindow.hide() },
     { type: 'separator' },
     { label: 'Verificar Update', click: () => autoUpdater.checkForUpdates() },
     {
       label: 'Sair',
       click: () => {
         app.isQuitting = true;
-        // destrói o tray antes de sair
-        if (appTray) {
-          appTray.destroy();
-          appTray = null;
-        }
+        if (appTray) { appTray.destroy(); appTray = null; }
         app.quit();
       }
     }
@@ -103,9 +100,6 @@ function createTray() {
   });
 }
 
-// =====================
-// Ciclo de vida do app
-// =====================
 app.whenReady().then(() => {
   app.setAppUserModelId('com.github.psycodeliccircus.fivem-tebex-checker');
   createTray();
@@ -116,18 +110,13 @@ app.on('activate', () => {
   if (mainWindow) mainWindow.show();
 });
 
-// destrói o tray antes de sair
 app.on('before-quit', () => {
   app.isQuitting = true;
-  if (appTray) {
-    appTray.destroy();
-    appTray = null;
-  }
+  if (appTray) { appTray.destroy(); appTray = null; }
 });
 
-// =====================
-// Funções de scan de .fxap
-// =====================
+// === Scan helpers ===
+
 function collectFxapFromDir(dir) {
   const found = [];
   (function walk(cur) {
@@ -174,9 +163,8 @@ function scanSingleResource(fullPath, name) {
   return fxaps.length ? { name, full: fullPath, files: fxaps } : null;
 }
 
-// =====================
-// Handlers de IPC
-// =====================
+// === IPC handlers ===
+
 ipcMain.handle('select-folder', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] });
   return canceled ? null : filePaths[0];
@@ -193,7 +181,7 @@ ipcMain.handle('select-file', async () => {
   return canceled ? null : filePaths[0];
 });
 
-// Handler com progresso
+// check-encryption with progress
 ipcMain.handle('check-encryption', async (event, selectedPath) => {
   const withRes = [], withoutRes = [];
   if (!selectedPath || !fs.existsSync(selectedPath)) {
@@ -229,7 +217,7 @@ ipcMain.handle('check-encryption', async (event, selectedPath) => {
   return { withRes, withoutRes };
 });
 
-ipcMain.handle('delete-resource', async (_, _u, resourceFullPath) => {
+ipcMain.handle('delete-resource', async (_e, _u, resourceFullPath) => {
   try {
     if (!fs.existsSync(resourceFullPath)) {
       return { success: false, error: 'Recurso não encontrado' };
@@ -246,18 +234,13 @@ ipcMain.handle('delete-resource', async (_, _u, resourceFullPath) => {
   }
 });
 
-// Quando o close-btn for clicado no renderer, fecha o tray também
 ipcMain.handle('window-close', () => {
   app.isQuitting = true;
-  if (appTray) {
-    appTray.destroy();
-    appTray = null;
-  }
+  if (appTray) { appTray.destroy(); appTray = null; }
   mainWindow.destroy();
   app.quit();
 });
 
-// Minimizar
 ipcMain.handle('window-minimize', () => mainWindow.minimize());
 ipcMain.handle('check_for_updates', () => autoUpdater.checkForUpdates());
-ipcMain.handle('restart_app',       () => autoUpdater.quitAndInstall());
+ipcMain.handle('restart_app', () => autoUpdater.quitAndInstall());

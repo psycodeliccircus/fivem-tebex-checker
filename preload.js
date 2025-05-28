@@ -1,23 +1,24 @@
-// preload.js
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+  // pasta/arquivo
   selectFolder:        () => ipcRenderer.invoke('select-folder'),
   selectFile:          () => ipcRenderer.invoke('select-file'),
-  checkEncryption:     (p) => ipcRenderer.invoke('check-encryption', p),
-  deleteResource:      (p, r) => ipcRenderer.invoke('delete-resource', p, r),
 
-  // progresso
+  // scan
+  checkEncryption:     (path) => ipcRenderer.invoke('check-encryption', path),
+  deleteResource:      (path, res) => ipcRenderer.invoke('delete-resource', path, res),
   onProgress:          (cb) => ipcRenderer.on('check-progress', (_e, data) => cb(data)),
 
   // updates
   checkForUpdates:     () => ipcRenderer.invoke('check_for_updates'),
   onUpdateAvailable:   (cb) => ipcRenderer.on('update_available',    () => cb()),
+  onUpdateProgress:    (cb) => ipcRenderer.on('update-progress',     (_e, data) => cb(data)),
   onUpdateDownloaded:  (cb) => ipcRenderer.on('update_downloaded',   () => cb()),
   onUpdateNotAvailable:(cb) => ipcRenderer.on('update_not_available',() => cb()),
   restartApp:          () => ipcRenderer.invoke('restart_app'),
 
-  // janelas
+  // janela
   windowMinimize:      () => ipcRenderer.invoke('window-minimize'),
   windowClose:         () => ipcRenderer.invoke('window-close'),
 });
