@@ -124,11 +124,6 @@ btnCheck.onclick = async () => {
 
   const allNames = withoutRes.concat(withRes.map(r => r.name));
   showAlert(
-    `Pastas verificadas: ${allNames.length ? allNames.join(', ') : 'nenhuma'}`,
-    5000,
-    true
-  );
-  showAlert(
     `Exibição finalizada: ${allNames.length} recurso(s).`,
     3000,
     true
