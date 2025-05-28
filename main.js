@@ -9,15 +9,27 @@ const AdmZip = require('adm-zip');
 const { autoUpdater } = require('electron-updater');
 
 let mainWindow;
-let appTray;                // instância do Tray
+let appTray;
 const ARCHIVE_EXTS = ['.zip', '.pack'];
+
+// =====================
+// Helper: caminhos de asset
+// =====================
+function getAssetPath(fileName) {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'build', fileName);
+  } else {
+    return path.join(__dirname, 'build', fileName);
+  }
+}
 
 // =====================
 // Cria a janela principal
 // =====================
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 800, height: 600,
+    width: 800,
+    height: 600,
     icon: getAssetPath('icon.png'),
     frame: false,
     webPreferences: {
@@ -29,7 +41,7 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
-  // Ao fechar, só esconde (até o usuário "Sair" via tray)
+  // ao fechar, esconde ou fecha de verdade conforme flag
   mainWindow.on('close', e => {
     if (!app.isQuitting) {
       e.preventDefault();
@@ -37,7 +49,7 @@ function createWindow() {
     }
   });
 
-  // Links externos sempre no navegador
+  // links externos
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
@@ -49,7 +61,7 @@ function createWindow() {
     }
   });
 
-  // Auto‐update
+  // auto‐update
   autoUpdater.autoDownload = true;
   autoUpdater.checkForUpdatesAndNotify();
   autoUpdater
@@ -60,34 +72,25 @@ function createWindow() {
 }
 
 // =====================
-// Gera o caminho correto para ícones/assets
-// =====================
-function getAssetPath(fileName) {
-  if (app.isPackaged) {
-    // Em produção, os arquivos ficam em resources/app.asar ou resources/app
-    return path.join(process.resourcesPath, 'build', fileName);
-  } else {
-    // Em desenvolvimento
-    return path.join(__dirname, 'build', fileName);
-  }
-}
-
-// =====================
 // Cria o ícone de Tray + menu
 // =====================
 function createTray() {
-  if (appTray) return; // já existe
-
+  if (appTray) return;
   appTray = new Tray(getAssetPath('icon.png'));
   const trayMenu = Menu.buildFromTemplate([
-    {
-      label: 'Verificar Update',
-      click: () => autoUpdater.checkForUpdates()
-    },
+    { label: 'Mostrar', click: () => mainWindow.show() },
+    { label: 'Ocultar', click: () => mainWindow.hide() },
+    { type: 'separator' },
+    { label: 'Verificar Update', click: () => autoUpdater.checkForUpdates() },
     {
       label: 'Sair',
       click: () => {
         app.isQuitting = true;
+        // destrói o tray antes de sair
+        if (appTray) {
+          appTray.destroy();
+          appTray = null;
+        }
         app.quit();
       }
     }
@@ -101,52 +104,35 @@ function createTray() {
 }
 
 // =====================
-// Inicialização
+// Ciclo de vida do app
 // =====================
 app.whenReady().then(() => {
-  // Necessário no Windows para notificações, Tray, etc.
   app.setAppUserModelId('com.github.psycodeliccircus.fivem-tebex-checker');
-
   createTray();
   createWindow();
 });
 
-// Re-exibe a janela no macOS ao clicar no dock icon
-app.on('activate', () => mainWindow.show());
-
-// Antes de dar app.quit(), marca a flag para não interceptar o close
-app.on('before-quit', () => app.isQuitting = true);
-
-// =====================
-// Todos os handlers de IPC
-// =====================
-
-// Selecionar pasta
-ipcMain.handle('select-folder', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    properties: ['openDirectory']
-  });
-  return canceled ? null : filePaths[0];
+app.on('activate', () => {
+  if (mainWindow) mainWindow.show();
 });
 
-// Selecionar arquivo compactado
-ipcMain.handle('select-file', async () => {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    properties: ['openFile'],
-    filters: [
-      { name: 'Compactados',      extensions: ARCHIVE_EXTS.map(e => e.slice(1)) },
-      { name: 'Todos os arquivos', extensions: ['*'] }
-    ]
-  });
-  return canceled ? null : filePaths[0];
+// destrói o tray antes de sair
+app.on('before-quit', () => {
+  app.isQuitting = true;
+  if (appTray) {
+    appTray.destroy();
+    appTray = null;
+  }
 });
 
-// Coleta .fxap recursivamente
+// =====================
+// Funções de scan de .fxap
+// =====================
 function collectFxapFromDir(dir) {
   const found = [];
-  (function walk(current) {
-    for (const name of fs.readdirSync(current)) {
-      const full = path.join(current, name);
+  (function walk(cur) {
+    for (const name of fs.readdirSync(cur)) {
+      const full = path.join(cur, name);
       if (fs.statSync(full).isDirectory()) {
         walk(full);
       } else if (name.toLowerCase().endsWith('.fxap')) {
@@ -157,16 +143,15 @@ function collectFxapFromDir(dir) {
   return found;
 }
 
-// Lista recursiva de subpastas
 function listAllDirectories(baseDir) {
   const list = [];
   const baseName = path.basename(baseDir);
   list.push({ name: baseName, full: baseDir });
-  (function walk(current, relPath) {
-    for (const name of fs.readdirSync(current)) {
-      const full = path.join(current, name);
+  (function walk(cur, rel) {
+    for (const name of fs.readdirSync(cur)) {
+      const full = path.join(cur, name);
       if (fs.statSync(full).isDirectory()) {
-        const relName = relPath ? `${relPath}/${name}` : name;
+        const relName = rel ? `${rel}/${name}` : name;
         list.push({ name: relName, full });
         walk(full, relName);
       }
@@ -175,7 +160,6 @@ function listAllDirectories(baseDir) {
   return list;
 }
 
-// Scaneia um único recurso
 function scanSingleResource(fullPath, name) {
   const stat = fs.statSync(fullPath);
   let fxaps = [];
@@ -187,12 +171,28 @@ function scanSingleResource(fullPath, name) {
       .map(e => e.entryName)
       .filter(n => n.toLowerCase().endsWith('.fxap'));
   }
-  return fxaps.length
-    ? { name, full: fullPath, files: fxaps }
-    : null;
+  return fxaps.length ? { name, full: fullPath, files: fxaps } : null;
 }
 
-// Handler principal de scan
+// =====================
+// Handlers de IPC
+// =====================
+ipcMain.handle('select-folder', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+  return canceled ? null : filePaths[0];
+});
+
+ipcMain.handle('select-file', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [
+      { name: 'Compactados', extensions: ARCHIVE_EXTS.map(e => e.slice(1)) },
+      { name: 'Todos os arquivos', extensions: ['*'] }
+    ]
+  });
+  return canceled ? null : filePaths[0];
+});
+
 ipcMain.handle('check-encryption', async (_, selectedPath) => {
   const withRes = [], withoutRes = [];
   if (!selectedPath || !fs.existsSync(selectedPath)) return { withRes, withoutRes };
@@ -220,8 +220,7 @@ ipcMain.handle('check-encryption', async (_, selectedPath) => {
   return { withRes, withoutRes };
 });
 
-// Handler de deleção
-ipcMain.handle('delete-resource', async (_, _unused, resourceFullPath) => {
+ipcMain.handle('delete-resource', async (_, _u, resourceFullPath) => {
   try {
     if (!fs.existsSync(resourceFullPath)) {
       return { success: false, error: 'Recurso não encontrado' };
@@ -238,8 +237,18 @@ ipcMain.handle('delete-resource', async (_, _unused, resourceFullPath) => {
   }
 });
 
-// Janela + updates
-ipcMain.handle('window-minimize',   () => mainWindow.minimize());
-ipcMain.handle('window-close',      () => mainWindow.close());
+// Quando o close-btn for clicado no renderer, fecha o tray também
+ipcMain.handle('window-close', () => {
+  app.isQuitting = true;
+  if (appTray) {
+    appTray.destroy();
+    appTray = null;
+  }
+  mainWindow.destroy();
+  app.quit();
+});
+
+// Minimizar
+ipcMain.handle('window-minimize', () => mainWindow.minimize());
 ipcMain.handle('check_for_updates', () => autoUpdater.checkForUpdates());
 ipcMain.handle('restart_app',       () => autoUpdater.quitAndInstall());
