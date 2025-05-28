@@ -193,30 +193,39 @@ ipcMain.handle('select-file', async () => {
   return canceled ? null : filePaths[0];
 });
 
-ipcMain.handle('check-encryption', async (_, selectedPath) => {
+// Handler com progresso
+ipcMain.handle('check-encryption', async (event, selectedPath) => {
   const withRes = [], withoutRes = [];
-  if (!selectedPath || !fs.existsSync(selectedPath)) return { withRes, withoutRes };
-
-  const stat = fs.statSync(selectedPath);
-  if (stat.isFile() && ARCHIVE_EXTS.includes(path.extname(selectedPath).toLowerCase())) {
-    const name = path.basename(selectedPath);
-    const res  = scanSingleResource(selectedPath, name);
-    res ? withRes.push(res) : withoutRes.push(name);
+  if (!selectedPath || !fs.existsSync(selectedPath)) {
+    event.sender.send('check-progress', { processed: 0, total: 0, current: '' });
     return { withRes, withoutRes };
   }
-  if (stat.isDirectory()) {
-    const rootName = path.basename(selectedPath);
-    const rootScan = scanSingleResource(selectedPath, rootName);
-    if (rootScan) {
-      withRes.push(rootScan);
-      return { withRes, withoutRes };
-    }
-    const dirs = listAllDirectories(selectedPath).slice(1);
-    for (const { name, full } of dirs) {
-      const sc = scanSingleResource(full, name);
-      sc ? withRes.push(sc) : withoutRes.push(name);
-    }
+
+  const stat = fs.statSync(selectedPath);
+  let items = [];
+  if (stat.isFile() && ARCHIVE_EXTS.includes(path.extname(selectedPath).toLowerCase())) {
+    items = [{ name: path.basename(selectedPath), full: selectedPath }];
+  } else if (stat.isDirectory()) {
+    const all = listAllDirectories(selectedPath);
+    items = all.slice(1);
   }
+
+  const total = items.length;
+  event.sender.send('check-progress', { processed: 0, total, current: '' });
+
+  for (let i = 0; i < items.length; i++) {
+    const { name, full } = items[i];
+    const res = scanSingleResource(full, name);
+    if (res) withRes.push(res);
+    else withoutRes.push(name);
+
+    event.sender.send('check-progress', {
+      processed: i + 1,
+      total,
+      current: name
+    });
+  }
+
   return { withRes, withoutRes };
 });
 

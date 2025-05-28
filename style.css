@@ -253,7 +253,7 @@ html, body {
 }
 .footer .heart {
   display: inline-block;
-  font-size: 1.1em;            /* aumenta um pouquinho o tamanho */
+  font-size: 1.1em;
   animation: pulse 1s ease-in-out infinite;
   transform-origin: center;
 }
@@ -323,4 +323,28 @@ html, body {
 }
 .temp-alert button:hover {
   background: #005A9E;
+}
+
+/* ===========================
+   Barra de Progresso
+   =========================== */
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.progress-container progress {
+  flex: 1;
+  height: 12px;
+  appearance: none;
+}
+.progress-container progress::-webkit-progress-bar {
+  background: #2E2E2E;
+  border-radius: 4px;
+}
+.progress-container progress::-webkit-progress-value {
+  background: #007ACC;
+  border-radius: 4px;
 }

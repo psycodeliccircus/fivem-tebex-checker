@@ -1,95 +1,68 @@
 // renderer.js
 
-// Obtém referências aos elementos do DOM
-const {
-  btnSelectFolder, btnSelectFile, btnCheck, btnUpdate,
-  pathDisplay, ulNo, ulYes,
-  btnDeleteAll, statusFooter,
-  minBtn, closeBtn
-} = (function() {
-  return {
-    btnSelectFolder: document.getElementById('btnSelectFolder'),
-    btnSelectFile:   document.getElementById('btnSelectFile'),
-    btnCheck:        document.getElementById('btnCheck'),
-    btnUpdate:       document.getElementById('btnUpdate'),
-    pathDisplay:     document.getElementById('pathDisplay'),
-    ulNo:            document.getElementById('ulNo'),
-    ulYes:           document.getElementById('ulYes'),
-    btnDeleteAll:    document.getElementById('btnDeleteAll'),
-    statusFooter:    document.getElementById('statusFooter'),
-    minBtn:          document.getElementById('min-btn'),
-    closeBtn:        document.getElementById('close-btn')
-  };
-})();
+// Elementos de seleção e verificação
+const btnSelectFolder = document.getElementById('btnSelectFolder');
+const btnSelectFile   = document.getElementById('btnSelectFile');
+const pathDisplay     = document.getElementById('pathDisplay');
+const btnCheck        = document.getElementById('btnCheck');
+const btnDeleteAll    = document.getElementById('btnDeleteAll');
+const ulNo            = document.getElementById('ulNo');
+const ulYes           = document.getElementById('ulYes');
+
+// Barra de progresso
+const progressCt      = document.getElementById('progressContainer');
+const progressBar     = document.getElementById('progressBar');
+const progressText    = document.getElementById('progressText');
+
+// Controles de janela
+const minBtn          = document.getElementById('min-btn');
+const closeBtn        = document.getElementById('close-btn');
+
+// Botão de update
+const btnUpdate       = document.getElementById('btnUpdate');
 
 let selectedPath = null;
 let foundRes = [];
 
-// Controles de janela
-minBtn.onclick   = () => window.api.minimize();
-closeBtn.onclick = () => window.api.close();
-
-// Limpa as listas e o rodapé
-function resetLists() {
-  ulNo.innerHTML = '';
-  ulYes.innerHTML = '';
-  btnDeleteAll.style.display = 'none';
-  statusFooter.textContent = '';
-}
-
-// Exibe um toast temporário com opcional botão e auto-close
-function showAlert(htmlContent, duration = 3000, autoClose = true) {
-  const alertEl = document.createElement('div');
-  alertEl.className = 'temp-alert';
-  alertEl.innerHTML = htmlContent;
-  document.body.appendChild(alertEl);
-
-  if (autoClose) {
-    setTimeout(() => {
-      alertEl.classList.add('hide');
-      alertEl.addEventListener('transitionend', () => alertEl.remove());
-    }, duration);
+// --- Selecionar pasta ---
+btnSelectFolder.addEventListener('click', async () => {
+  const folder = await window.api.selectFolder();
+  if (folder) {
+    selectedPath = folder;
+    pathDisplay.textContent = folder;
+    btnCheck.disabled = false;
   }
+});
 
-  return alertEl;
-}
+// --- Selecionar arquivo ---
+btnSelectFile.addEventListener('click', async () => {
+  const file = await window.api.selectFile();
+  if (file) {
+    selectedPath = file;
+    pathDisplay.textContent = file;
+    btnCheck.disabled = false;
+  }
+});
 
-// Selecionar pasta
-btnSelectFolder.onclick = async () => {
-  const p = await window.api.selectFolder();
-  if (!p) return;
-  selectedPath = p;
-  pathDisplay.textContent = p;
-  btnCheck.disabled = false;
-  resetLists();
-};
-
-// Selecionar arquivo (.zip / .pack)
-btnSelectFile.onclick = async () => {
-  const p = await window.api.selectFile();
-  if (!p) return;
-  selectedPath = p;
-  pathDisplay.textContent = p;
-  btnCheck.disabled = false;
-  resetLists();
-};
-
-// Iniciar verificação
-btnCheck.onclick = async () => {
+// --- Iniciar verificação ---
+btnCheck.addEventListener('click', async () => {
   if (!selectedPath) return;
 
-  showAlert('Processando...', 2000, true);
-  resetLists();
+  ulNo.innerHTML = '';
+  ulYes.innerHTML = '';
+  foundRes = [];
 
   const { withRes, withoutRes } = await window.api.checkEncryption(selectedPath);
   foundRes = withRes;
 
+  // Lista sem Tebex
   withoutRes.forEach(name => {
     const li = document.createElement('li');
     li.textContent = name;
     ulNo.appendChild(li);
   });
 
+  // Lista com Tebex
   if (withRes.length > 0) {
     btnDeleteAll.style.display = 'inline-block';
     withRes.forEach((r, i) => {
@@ -114,6 +87,7 @@ btnCheck.onclick = async () => {
     );
   }
 
+  // Excluir todos
   btnDeleteAll.onclick = () => {
     if (!confirm('Deletar completamente todas as pastas encontradas?')) return;
     foundRes.forEach(async r => {
@@ -123,27 +97,37 @@ btnCheck.onclick = async () => {
   };
 
   const allNames = withoutRes.concat(withRes.map(r => r.name));
-  showAlert(
-    `Exibição finalizada: ${allNames.length} recurso(s).`,
-    3000,
-    true
-  );
-};
+  showAlert(`Exibição finalizada: ${allNames.length} recurso(s).`, 3000, true);
+});
 
-// Verificação de update
+// --- Progress bar ---
+window.api.onProgress(({ processed, total, current }) => {
+  if (total === 0) {
+    progressCt.style.display = 'none';
+    return;
+  }
+  progressCt.style.display = 'flex';
+  const pct = Math.round((processed / total) * 100);
+  progressBar.value = pct;
+  progressText.textContent = `${processed}/${total} — processando "${current}"`;
+  if (processed === total) {
+    setTimeout(() => {
+      progressCt.style.display = 'none';
+    }, 500);
+  }
+});
+
+// --- Sistema de Update ---
 btnUpdate.onclick = () => {
   showAlert('Checando atualizações...', 2000, true);
   window.api.checkForUpdates();
 };
 
-// Quando atualização for encontrada
 window.api.onUpdateAvailable(() => {
-  // deixa o botão visível (caso estivesse escondido)
   btnUpdate.style.display = 'inline-block';
   showAlert('Update encontrado! Baixando...', 3000, true);
 });
 
-// Quando atualização for baixada
 window.api.onUpdateDownloaded(() => {
   const toast = showAlert(
     'Update baixado! <button id="rBtn">Reiniciar</button>',
@@ -153,9 +137,11 @@ window.api.onUpdateDownloaded(() => {
   toast.querySelector('#rBtn').onclick = () => window.api.restartApp();
 });
 
-// Quando não há atualização disponível
 window.api.onUpdateNotAvailable(() => {
-  // esconde o botão de verificar update
   btnUpdate.style.display = 'none';
   showAlert('Você já está usando a versão mais recente.', 3000, true);
 });
+
+// --- Controles de Janela ---
+minBtn.onclick = () => window.api.windowMinimize();
+closeBtn.onclick = () => window.api.windowClose();
