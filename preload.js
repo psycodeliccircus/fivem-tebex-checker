@@ -25,4 +25,6 @@ contextBridge.exposeInMainWorld('api', {
   windowMaximize:      () => ipcRenderer.invoke('window-maximize'),
   windowMinimize:      () => ipcRenderer.invoke('window-minimize'),
   windowClose:         () => ipcRenderer.invoke('window-close'),
+
+  getAssetPath: (fileName) => ipcRenderer.invoke('get-asset-path', fileName),
 });

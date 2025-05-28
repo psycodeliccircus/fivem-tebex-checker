@@ -185,3 +185,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   footer.textContent = `${info.name} v${info.version}`;
 });
 
+window.addEventListener('DOMContentLoaded', () => {
+  window.api.getAssetPath('icon.png')
+    .then(p => document.getElementById('logoIcon').src = p);
+  window.api.getAssetPath('discord-white-icon.png')
+    .then(p => document.getElementById('discordIcon').src = p);
+});

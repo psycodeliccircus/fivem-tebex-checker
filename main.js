@@ -260,3 +260,8 @@ ipcMain.handle('get-app-info', () => {
     version: app.getVersion()
   };
 });
+
+ipcMain.handle('get-asset-path', (_e, fileName) => {
+  // getAssetPath já sabe lidar com app.isPackaged ou não
+  return getAssetPath(fileName);
+});
