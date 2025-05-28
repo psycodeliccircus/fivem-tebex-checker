@@ -24,6 +24,7 @@ function createWindow() {
     width: 800,
     height: 600,
     icon: getAssetPath('icon.png'),
+    fullscreen: true,
     frame: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -244,3 +245,11 @@ ipcMain.handle('window-close', () => {
 ipcMain.handle('window-minimize', () => mainWindow.minimize());
 ipcMain.handle('check_for_updates', () => autoUpdater.checkForUpdates());
 ipcMain.handle('restart_app', () => autoUpdater.quitAndInstall());
+
+// Expõe nome e versão ao renderer
+ipcMain.handle('get-app-info', () => {
+  return {
+    name: "FiveM Tebex Checker",
+    version: app.getVersion()
+  };
+});

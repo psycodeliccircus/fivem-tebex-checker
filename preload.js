@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('api', {
   deleteResource:      (path, res) => ipcRenderer.invoke('delete-resource', path, res),
   onProgress:          (cb) => ipcRenderer.on('check-progress', (_e, data) => cb(data)),
 
+  //version
+  getAppInfo:          () => ipcRenderer.invoke('get-app-info'),
+
   // updates
   checkForUpdates:     () => ipcRenderer.invoke('check_for_updates'),
   onUpdateAvailable:   (cb) => ipcRenderer.on('update_available',    () => cb()),

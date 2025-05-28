@@ -173,3 +173,11 @@ window.api.onUpdateNotAvailable(() => {
 // ===== Controles de Janela =====
 minBtn.onclick   = () => window.api.windowMinimize();
 closeBtn.onclick = () => window.api.windowClose();
+
+// assim que carregar a UI, busca nome e versão
+window.addEventListener('DOMContentLoaded', async () => {
+  const info = await window.api.getAppInfo();
+  const footer = document.getElementById('footerVersion');
+  footer.textContent = `${info.name} v${info.version}`;
+});
+
