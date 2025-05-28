@@ -86,11 +86,11 @@ fivem-tebex-checker/
 ├── preload.js
 ├── index.html
 ├── renderer.js
-├── eula.txt
+├── eula.
+├── style.css
 ├── LICENSE.md
 ├── README.md
-├── package.json
-└── dist/
+└── package.json
 ```
 
 ---

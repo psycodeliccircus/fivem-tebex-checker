@@ -141,7 +141,7 @@ btnUpdate.onclick = () => {
 };
 
 window.api.onUpdateAvailable(() => {
-  btnUpdate.style.display = 'inline-block';
+  btnUpdate.style.display = 'none';
   showAlert('Update encontrado! Baixando...', 3000, true);
 });
 
@@ -149,11 +149,13 @@ window.api.onUpdateProgress(({ percent }) => {
   progressCt.style.display = 'flex';
   progressBar.value = Math.round(percent);
   progressText.textContent = `Baixando atualização: ${Math.round(percent)}%`;
+  btnUpdate.style.display = 'none';
 });
 
 window.api.onUpdateDownloaded(() => {
   progressBar.value = 100;
   progressText.textContent = 'Download concluído!';
+  btnUpdate.style.display = 'none';
   setTimeout(() => progressCt.style.display = 'none', 1000);
 
   const toast = showAlert(

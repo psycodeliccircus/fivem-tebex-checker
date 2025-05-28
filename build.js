@@ -1,14 +1,13 @@
 // build.js
 const builder   = require('electron-builder');
-const nodeFetch = require('node-fetch');   // v2, suporta require()
+const nodeFetch = require('node-fetch');
 const fs        = require('fs');
 const path      = require('path');
 const png2icons = require('png2icons');
-const Jimp      = require('jimp');         // v0.16.1, suporta require()
+const Jimp      = require('jimp');
 const { productName } = require('./package.json');
 
 class Index {
-  /** Empacota o app via electron-builder */
   async build() {
     builder.build({
       config: {
@@ -20,7 +19,12 @@ class Index {
         copyright:
           'Copyright © 1984-2025 FiveM Tebex Checker - Dev by RenildoMarcio',
         artifactName: '${productName}-${os}-${arch}.${ext}',
-        files: ['**/*', 'package.json', 'LICENSE.md'],
+        files: [
+          '**/*',
+          'package.json',
+          'LICENSE.md',
+          'eula.txt'
+        ],
         directories: { output: 'dist' },
         compression: 'maximum',
         asar: true,
@@ -61,14 +65,15 @@ class Index {
             { target: 'tar.gz',   arch: ['x64', 'arm64'] }
           ]
         },
-        // appImage sem o campo 'desktop', que causava o erro de validação
         appImage: {
           artifactName: '${productName}-${os}-${arch}.AppImage',
           category: 'Game',
           license: './eula.txt'
         },
         extraResources: [
-          { from: 'build/icon.png', to: 'build/icon.png' }
+          { from: 'build/icon.png',                to: 'build/icon.png' },
+          { from: 'eula.txt',                      to: 'eula.txt' },
+          { from: 'build/discord-white-icon.png',  to: 'build/discord-white-icon.png' }
         ],
         protocols: {
           name: 'fivem-tebex-checker',
@@ -80,7 +85,6 @@ class Index {
     .catch(err => console.error('Erro durante a build!', err));
   }
 
-  /** Baixa PNG, sanitiza, redimensiona e grava os ícones */
   async iconSet(url) {
     console.log(`Baixando ícone de ${url}…`);
     const res = await nodeFetch(url);
@@ -88,10 +92,8 @@ class Index {
       return console.error('connection error', res.status);
     }
 
-    // lê buffer
     let buffer = await res.buffer();
 
-    // sanitiza após IEND
     const IEND = Buffer.from([0,0,0x00,0x00,0x49,0x45,0x4E,0x44]);
     const iendOffset = buffer.indexOf(IEND);
     if (iendOffset !== -1) {
@@ -116,7 +118,6 @@ class Index {
         path.join(buildDir, 'icon.icns'),
         png2icons.createICNS(resized, png2icons.BILINEAR, 0)
       );
-
       console.log('Ícones gerados em build/');
     } catch (err) {
       console.error('Erro ao processar a imagem via Jimp:', err);
@@ -124,7 +125,6 @@ class Index {
   }
 }
 
-// Entrypoint: --icon=<URL> ou --build
 const inst = new Index();
 process.argv.slice(2).forEach(arg => {
   if (arg.startsWith('--icon=')) {
